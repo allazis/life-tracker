@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { Card, CardContent, Button, TextField, Typography, List, ListItem, IconButton, Box } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { Box, Typography } from '@mui/material';
+import InputForm from './Components/InputForm';
+import TemperatureChart from './Components/TemperatureChart';
+import TemperatureList from './Components/TemperatureList';
 
 interface TemperatureData {
   date: string;
@@ -9,29 +10,18 @@ interface TemperatureData {
 }
 
 const App: React.FC = () => {
-  const [temperature, setTemperature] = useState<string>('');
-  const [date, setDate] = useState<string>('');
   const [data, setData] = useState<TemperatureData[]>([]);
 
-  const handleAddData = () => {
-    if (temperature && !isNaN(Number(temperature))) {
-      const newEntry: TemperatureData = {
-        date: date || new Date().toISOString().split('T')[0], // Använd valt datum eller dagens datum
-        temperature: Number(temperature),
-      };
-      setData((prevData) => [...prevData, newEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      setTemperature('');
-      setDate('');
-    } else {
-      alert('Vänligen ange en giltig temperatur.');
-    }
+  const handleAddData = (newEntry: TemperatureData) => {
+    setData((prevData) =>
+      [...prevData, newEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    );
   };
 
   const handleDeleteData = (index: number) => {
     setData((prevData) => prevData.filter((_, i) => i !== index));
   };
 
-  // Fyll ut saknade datum
   const generateDateRange = (start: string, end: string) => {
     const dateArray: string[] = [];
     let currentDate = new Date(start);
@@ -61,60 +51,9 @@ const App: React.FC = () => {
   return (
     <Box style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <Typography variant="h4" gutterBottom>Temperaturspårning</Typography>
-
-      {/* Input Section */}
-      <Card style={{ width: '100%', maxWidth: '800px', marginBottom: '16px' }}>
-        <CardContent>
-          <Box style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <TextField
-              type="number"
-              label="Ange temperatur"
-              value={temperature}
-              onChange={(e) => setTemperature(e.target.value)}
-              fullWidth
-              variant="outlined"
-            />
-            <TextField
-              type="date"
-              label="Ange datum (valfritt)"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
-            <Button variant="contained" color="primary" onClick={handleAddData} fullWidth>Lägg till</Button>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Chart Section */}
-      <Box style={{ width: '100%', maxWidth: '800px', height: '400px', marginBottom: '16px' }}>
-        <ResponsiveContainer>
-          <LineChart data={filledData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="temperature" stroke="#8884d8" strokeWidth={2} connectNulls={true} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Box>
-
-      {/* Scrollable Table Section */}
-      <Card style={{ width: '100%', maxWidth: '800px', maxHeight: '200px', overflowY: 'auto' }}>
-        <CardContent>
-          <List>
-            {data.map((entry, index) => (
-              <ListItem key={index} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography>{`${entry.date}: ${entry.temperature}°C`}</Typography>
-                <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteData(index)}>
-                  <DeleteIcon />
-                </IconButton>
-              </ListItem>
-            ))}
-          </List>
-        </CardContent>
-      </Card>
+      <InputForm onAddData={handleAddData} />
+      <TemperatureChart data={filledData} />
+      <TemperatureList data={data} onDeleteData={handleDeleteData} />
     </Box>
   );
 };
