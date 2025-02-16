@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
-import InputForm from './components/InputForm';
-import TemperatureChart from './components/TemperatureChart';
-import TemperatureList from './components/TemperatureList';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button } from '@mui/material';
+import InputForm from './Components/InputForm';
+import TemperatureChart from './Components/TemperatureChart';
+import TemperatureList from './Components/TemperatureList';
+import { initGoogleClient, addRowToSheet, fetchSheetData } from './server/GoogleSheetsService';
+import { gapi } from 'gapi-script';
 
 interface TemperatureData {
   date: string;
@@ -12,13 +14,30 @@ interface TemperatureData {
 const App: React.FC = () => {
   const [data, setData] = useState<TemperatureData[]>([]);
 
-  const handleAddData = (newEntry: TemperatureData) => {
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await initGoogleClient();
+        const sheetData = await fetchSheetData();
+        setData(sheetData);
+      } catch (err) {
+        console.error('Error initializing Google Sheets client:', err);
+      }
+    };
+
+    initialize();
+  }, []);
+
+  const handleAddData = async (newEntry: TemperatureData) => {
     setData((prevData) =>
       [...prevData, newEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     );
+    await addRowToSheet(newEntry);
   };
 
   const handleDeleteData = (index: number) => {
+    // Deleting from a Google Sheet requires more complex logic like row lookup and deletion.
+    // For simplicity, we'll just remove it locally in this example.
     setData((prevData) => prevData.filter((_, i) => i !== index));
   };
 
@@ -48,9 +67,22 @@ const App: React.FC = () => {
     });
   })();
 
+  const handleSignOut = () => {
+    const authInstance = gapi.auth2.getAuthInstance();
+    authInstance.signOut();
+  };
+
   return (
     <Box style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <Typography variant="h4" gutterBottom>Temperaturspårning</Typography>
+      <Button
+        variant="contained"
+        color="secondary"
+        style={{ marginBottom: '16px' }}
+        onClick={handleSignOut}
+      >
+        Sign Out
+      </Button>
       <InputForm onAddData={handleAddData} />
       <TemperatureChart data={filledData} />
       <TemperatureList data={data} onDeleteData={handleDeleteData} />
