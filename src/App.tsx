@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, CircularProgress, Snackbar, Alert } from '@mui/material';
-import InputForm from './Components/InputForm';
-import TemperatureChart from './Components/TemperatureChart';
-import TemperatureList from './Components/TemperatureList';
+import InputForm from './components/InputForm';
+import TemperatureChart from './components/TemperatureChart';
+import TemperatureList from './components/TemperatureList';
 import { initGoogleClient, addRowToSheet, fetchSheetData, deleteRowFromSheet } from './server/GoogleSheetsService';
 import { gapi } from 'gapi-script';
 
 interface TemperatureData {
+  index: number;
   date: string;
   temperature: number | null;
 }
@@ -20,7 +21,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
-      setError(null); // Reset error before fetching
+      setError(null);
 
       try {
         await initGoogleClient();
@@ -28,7 +29,7 @@ const App: React.FC = () => {
         setData(sheetData);
       } catch (err) {
         setError('Failed to fetch data');
-        setOpenSnackbar(true); // Show snackbar when there's an error
+        setOpenSnackbar(true);
         console.error('Error initializing Google Sheets client:', err);
       } finally {
         setLoading(false);
@@ -36,23 +37,29 @@ const App: React.FC = () => {
     };
 
     initialize();
-  }, []); // Empty dependency array, run once on mount
+  }, []);
 
-  const handleAddData = async (newEntry: TemperatureData) => {
-    setData((prevData) =>
-      [...prevData, newEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    );
+  const handleAddData = async (newEntry: { date: string; temperature: number }) => {
+    // Add the new entry with index (the index will be the next available index in the list)
+    setData((prevData) => {
+      const newIndex = prevData.length > 0 ? prevData[prevData.length - 1].index + 1 : 1;
+      const newDataEntry: TemperatureData = {
+        index: newIndex,
+        date: newEntry.date,
+        temperature: newEntry.temperature,
+      };
+
+      const sortedData = [...prevData, newDataEntry].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      return sortedData;
+    });
     await addRowToSheet(newEntry);
   };
 
   const handleDeleteData = async (index: number) => {
-    const rowIndex = index + 1; // Google Sheets row index is 1-based, so we add 1
+    const rowIndex = index + 1; // Adjust for 1-based index in Google Sheets
 
     try {
-      // First, delete from Google Sheets
       await deleteRowFromSheet(rowIndex);
-      
-      // Then, update the state to remove the row from the local data
       setData((prevData) => prevData.filter((_, i) => i !== index));
     } catch (err) {
       setError('Failed to delete data');
@@ -83,7 +90,7 @@ const App: React.FC = () => {
 
     return dateRange.map((date) => {
       const existingEntry = data.find((entry) => entry.date === date);
-      return existingEntry || { date, temperature: null };
+      return existingEntry || { date, temperature: null, index: -1 };
     });
   })();
 
@@ -94,7 +101,7 @@ const App: React.FC = () => {
   };
 
   const handleCloseSnackbar = () => {
-    setOpenSnackbar(false); // Close the snackbar when user clicks on it
+    setOpenSnackbar(false);
   };
 
   return (
@@ -109,7 +116,6 @@ const App: React.FC = () => {
         Sign Out
       </Button>
 
-      {/* Show loading spinner while data is being fetched */}
       {loading ? (
         <CircularProgress />
       ) : (
@@ -120,10 +126,9 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* Show error message if there was an issue fetching data */}
       <Snackbar
-        open={openSnackbar} // Open the Snackbar based on openSnackbar state
-        autoHideDuration={6000} // Auto-hide the snackbar after 6 seconds
+        open={openSnackbar}
+        autoHideDuration={6000}
         onClose={handleCloseSnackbar}
       >
         <Alert onClose={handleCloseSnackbar} severity="error">

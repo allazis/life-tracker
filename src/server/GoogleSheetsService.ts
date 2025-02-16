@@ -47,20 +47,21 @@ export const addRowToSheet = async (rowData: { date: string; temperature: number
   }
 };
 
-export const fetchSheetData = async (): Promise<{ date: string; temperature: number | null }[]> => {
+export const fetchSheetData = async (): Promise<{ index: number; date: string; temperature: number | null }[]> => {
   const authInstance = gapi.auth2.getAuthInstance();
   if (!authInstance.isSignedIn.get()) {
-    await authInstance.signIn(); // Ensure user is signed in
+    await authInstance.signIn();
   }
 
   try {
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: 'Sheet1!A:B',
+      range: 'Sheet1!A:C', // Assuming column C will contain the index
     });
 
     const rows = response.result.values || [];
-    return rows.map(([date, temperature]: [string, string | null]) => ({
+    return rows.map(([date, temperature, index]: [string, string | null, string | null]) => ({
+      index: index ? parseInt(index) : 0, // Use the index from the Google Sheets (Column C)
       date,
       temperature: temperature ? parseFloat(temperature) : null,
     }));
