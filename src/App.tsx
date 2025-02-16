@@ -3,7 +3,7 @@ import { Box, Typography, Button, CircularProgress, Snackbar, Alert } from '@mui
 import InputForm from './components/InputForm';
 import TemperatureChart from './components/TemperatureChart';
 import TemperatureList from './components/TemperatureList';
-import { initGoogleClient, addRowToSheet, fetchSheetData, deleteRowFromSheet } from './server/GoogleSheetsService';
+import { initGoogleClient, addRowToSheet, fetchSheetData } from './server/GoogleSheetsService';
 import { gapi } from 'gapi-script';
 
 const SHEET_ID = '1VE9YGWLLO9CrLd4hst794GCo69r8F4B95dEI7GqeZJ8'; // Define SHEET_ID
