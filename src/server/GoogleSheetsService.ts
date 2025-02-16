@@ -69,3 +69,24 @@ export const fetchSheetData = async (): Promise<{ date: string; temperature: num
     return [];
   }
 };
+
+// Method to delete a row by its index
+export const deleteRowFromSheet = async (rowIndex: number) => {
+  const authInstance = gapi.auth2.getAuthInstance();
+  if (!authInstance.isSignedIn.get()) {
+    await authInstance.signIn(); // Ensure user is signed in
+  }
+
+  try {
+    // Specify the range to delete based on the row index (e.g., row 2 is 'A2:B2')
+    const range = `Sheet1!A${rowIndex + 1}:B${rowIndex + 1}`;
+    
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: range,
+    });
+    console.log(`Row ${rowIndex + 1} deleted successfully.`);
+  } catch (err) {
+    console.error('Error deleting row:', err);
+  }
+};

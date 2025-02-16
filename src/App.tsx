@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, Button, CircularProgress, Snackbar, Alert } from '@mui/material';
 import InputForm from './Components/InputForm';
 import TemperatureChart from './Components/TemperatureChart';
 import TemperatureList from './Components/TemperatureList';
-import { initGoogleClient, addRowToSheet, fetchSheetData } from './server/GoogleSheetsService';
+import { initGoogleClient, addRowToSheet, fetchSheetData, deleteRowFromSheet } from './server/GoogleSheetsService';
 import { gapi } from 'gapi-script';
 
 interface TemperatureData {
@@ -13,20 +13,30 @@ interface TemperatureData {
 
 const App: React.FC = () => {
   const [data, setData] = useState<TemperatureData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
 
   useEffect(() => {
     const initialize = async () => {
+      setLoading(true);
+      setError(null); // Reset error before fetching
+
       try {
         await initGoogleClient();
         const sheetData = await fetchSheetData();
         setData(sheetData);
       } catch (err) {
+        setError('Failed to fetch data');
+        setOpenSnackbar(true); // Show snackbar when there's an error
         console.error('Error initializing Google Sheets client:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
     initialize();
-  }, []);
+  }, []); // Empty dependency array, run once on mount
 
   const handleAddData = async (newEntry: TemperatureData) => {
     setData((prevData) =>
@@ -35,10 +45,20 @@ const App: React.FC = () => {
     await addRowToSheet(newEntry);
   };
 
-  const handleDeleteData = (index: number) => {
-    // Deleting from a Google Sheet requires more complex logic like row lookup and deletion.
-    // For simplicity, we'll just remove it locally in this example.
-    setData((prevData) => prevData.filter((_, i) => i !== index));
+  const handleDeleteData = async (index: number) => {
+    const rowIndex = index + 1; // Google Sheets row index is 1-based, so we add 1
+
+    try {
+      // First, delete from Google Sheets
+      await deleteRowFromSheet(rowIndex);
+      
+      // Then, update the state to remove the row from the local data
+      setData((prevData) => prevData.filter((_, i) => i !== index));
+    } catch (err) {
+      setError('Failed to delete data');
+      setOpenSnackbar(true);
+      console.error('Error deleting data:', err);
+    }
   };
 
   const generateDateRange = (start: string, end: string) => {
@@ -70,6 +90,11 @@ const App: React.FC = () => {
   const handleSignOut = () => {
     const authInstance = gapi.auth2.getAuthInstance();
     authInstance.signOut();
+    setData([]);
+  };
+
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false); // Close the snackbar when user clicks on it
   };
 
   return (
@@ -83,9 +108,28 @@ const App: React.FC = () => {
       >
         Sign Out
       </Button>
-      <InputForm onAddData={handleAddData} />
-      <TemperatureChart data={filledData} />
-      <TemperatureList data={data} onDeleteData={handleDeleteData} />
+
+      {/* Show loading spinner while data is being fetched */}
+      {loading ? (
+        <CircularProgress />
+      ) : (
+        <>
+          <InputForm onAddData={handleAddData} />
+          <TemperatureChart data={filledData} />
+          <TemperatureList data={data} onDeleteData={handleDeleteData} />
+        </>
+      )}
+
+      {/* Show error message if there was an issue fetching data */}
+      <Snackbar
+        open={openSnackbar} // Open the Snackbar based on openSnackbar state
+        autoHideDuration={6000} // Auto-hide the snackbar after 6 seconds
+        onClose={handleCloseSnackbar}
+      >
+        <Alert onClose={handleCloseSnackbar} severity="error">
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
