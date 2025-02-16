@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
 
+  // Initialize Google Client and check the sign-in state
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
@@ -27,12 +28,10 @@ const App: React.FC = () => {
 
       try {
         await initGoogleClient();
-        const sheetData = await fetchSheetData();
-        setData(sheetData);
         const authInstance = gapi.auth2.getAuthInstance();
         setIsSignedIn(authInstance.isSignedIn.get());
       } catch (err) {
-        setError('Failed to fetch data');
+        setError('Failed to initialize Google Client');
         setOpenSnackbar(true);
         console.error('Error initializing Google Sheets client:', err);
       } finally {
@@ -43,6 +42,28 @@ const App: React.FC = () => {
     initialize();
   }, []);
 
+  // Fetch data only when signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          const sheetData = await fetchSheetData();
+          setData(sheetData);
+        } catch (err) {
+          setError('Failed to fetch data');
+          setOpenSnackbar(true);
+          console.error('Error fetching sheet data:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchData();
+    }
+  }, [isSignedIn]);
+
+  // Handle adding new data
   const handleAddData = async (newEntry: { date: string; temperature: number }) => {
     setData((prevData) => {
       const newDataEntry: TemperatureData = {
@@ -56,6 +77,7 @@ const App: React.FC = () => {
     await addRowToSheet(newEntry);
   };
 
+  // Handle deleting data
   const handleDeleteData = async (date: string, temperature: number | null) => {
     const authInstance = gapi.auth2.getAuthInstance();
     if (!authInstance.isSignedIn.get()) {
@@ -86,12 +108,12 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle sign-in
   const handleSignIn = async () => {
     try {
       const authInstance = gapi.auth2.getAuthInstance();
       await authInstance.signIn();
       setIsSignedIn(true);
-      await fetchSheetData(); // Reload data after sign-in
     } catch (err) {
       console.error('Sign-in failed:', err);
       setError('Sign-in failed');
@@ -99,17 +121,20 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle sign-out
   const handleSignOut = () => {
     const authInstance = gapi.auth2.getAuthInstance();
     authInstance.signOut();
     setIsSignedIn(false);
-    setData([]);
+    setData([]); // Clear data on sign-out
   };
 
+  // Close error snackbar
   const handleCloseSnackbar = () => {
     setOpenSnackbar(false);
   };
 
+  // Generate date range for the chart
   const generateDateRange = (start: string, end: string) => {
     const dateArray: string[] = [];
     let currentDate = new Date(start);
@@ -123,6 +148,7 @@ const App: React.FC = () => {
     return dateArray;
   };
 
+  // Process data for the chart
   const filledData = (() => {
     if (data.length === 0) return [];
 
@@ -141,34 +167,33 @@ const App: React.FC = () => {
       <Typography variant="h4" gutterBottom>Temperaturspårning</Typography>
 
       <Box style={{ marginBottom: '16px' }}>
-        {/* Combined Sign In/Sign Out button */}
+        {/* Sign In/Out button */}
         <Button
           variant="contained"
           style={{
-            backgroundColor: isSignedIn ? 'red' : 'green', // Red for Sign Out, Green for Sign In
+            backgroundColor: isSignedIn ? 'red' : 'green',
             color: 'white',
           }}
-          onClick={isSignedIn ? handleSignOut : handleSignIn} // Calls appropriate function
+          onClick={isSignedIn ? handleSignOut : handleSignIn}
         >
-          {isSignedIn ? "Sign Out" : "Sign In"} {/* Text changes based on sign-in status */}
+          {isSignedIn ? 'Sign Out' : 'Sign In'}
         </Button>
       </Box>
 
+      {/* Loader while loading */}
       {loading ? (
         <CircularProgress />
       ) : (
-        <>
-          <InputForm onAddData={handleAddData} />
-          <TemperatureChart data={filledData} />
-          <TemperatureList data={data} onDeleteData={(date: string, temperature: number | null) => handleDeleteData(date, temperature)} />
-        </>
+        isSignedIn && (
+          <>
+            <InputForm onAddData={handleAddData} />
+            <TemperatureChart data={filledData} />
+            <TemperatureList data={data} onDeleteData={handleDeleteData} />
+          </>
+        )
       )}
 
-      <Snackbar
-        open={openSnackbar}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-      >
+      <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
         <Alert onClose={handleCloseSnackbar} severity="error">
           {error}
         </Alert>
