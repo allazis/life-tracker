@@ -47,7 +47,7 @@ export const addRowToSheet = async (rowData: { date: string; temperature: number
   }
 };
 
-export const fetchSheetData = async (): Promise<{ index: number; date: string; temperature: number | null }[]> => {
+export const fetchSheetData = async (): Promise<{ date: string; temperature: number | null }[]> => {
   const authInstance = gapi.auth2.getAuthInstance();
   if (!authInstance.isSignedIn.get()) {
     await authInstance.signIn();
@@ -56,15 +56,23 @@ export const fetchSheetData = async (): Promise<{ index: number; date: string; t
   try {
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: 'Sheet1!A:C', // Assuming column C will contain the index
+      range: 'Sheet1!A:B', // Just the columns with date and temperature
     });
 
     const rows = response.result.values || [];
-    return rows.map(([date, temperature, index]: [string, string | null, string | null]) => ({
-      index: index ? parseInt(index) : 0, // Use the index from the Google Sheets (Column C)
-      date,
-      temperature: temperature ? parseFloat(temperature) : null,
-    }));
+
+    // Clean up rows: remove those with null or empty values for date or temperature
+    const cleanedRows = rows
+      .map(([date, temperature]: [string, string | null]) => ({
+        date,
+        temperature: temperature ? parseFloat(temperature) : null,
+      }))
+      .filter((row: { date: any; temperature: null; }) => row.date && row.temperature !== null); // Filter rows with null or empty date/temperature
+
+    // Sort rows by date
+    cleanedRows.sort((a: { date: string | number | Date; }, b: { date: string | number | Date; }) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return cleanedRows;
   } catch (err) {
     console.error('Error fetching data:', err);
     return [];

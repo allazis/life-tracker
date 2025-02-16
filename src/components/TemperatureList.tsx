@@ -4,7 +4,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 interface TemperatureListProps {
   data: { date: string; temperature: number | null }[];
-  onDeleteData: (index: number) => void;
+  onDeleteData: (date: string, temperature: number | null) => void;
 }
 
 const TemperatureList: React.FC<TemperatureListProps> = ({ data, onDeleteData }) => {
@@ -15,7 +15,11 @@ const TemperatureList: React.FC<TemperatureListProps> = ({ data, onDeleteData })
           {data.map((entry, index) => (
             <ListItem key={index} style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography>{`${entry.date}: ${entry.temperature}°C`}</Typography>
-              <IconButton edge="end" aria-label="delete" onClick={() => onDeleteData(index)}>
+              <IconButton
+                edge="end"
+                aria-label="delete"
+                onClick={() => onDeleteData(entry.date, entry.temperature)}
+              >
                 <DeleteIcon />
               </IconButton>
             </ListItem>

@@ -6,8 +6,9 @@ import TemperatureList from './components/TemperatureList';
 import { initGoogleClient, addRowToSheet, fetchSheetData, deleteRowFromSheet } from './server/GoogleSheetsService';
 import { gapi } from 'gapi-script';
 
+const SHEET_ID = '1VE9YGWLLO9CrLd4hst794GCo69r8F4B95dEI7GqeZJ8'; // Define SHEET_ID
+
 interface TemperatureData {
-  index: number;
   date: string;
   temperature: number | null;
 }
@@ -17,6 +18,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   useEffect(() => {
     const initialize = async () => {
@@ -27,6 +29,8 @@ const App: React.FC = () => {
         await initGoogleClient();
         const sheetData = await fetchSheetData();
         setData(sheetData);
+        const authInstance = gapi.auth2.getAuthInstance();
+        setIsSignedIn(authInstance.isSignedIn.get());
       } catch (err) {
         setError('Failed to fetch data');
         setOpenSnackbar(true);
@@ -40,11 +44,8 @@ const App: React.FC = () => {
   }, []);
 
   const handleAddData = async (newEntry: { date: string; temperature: number }) => {
-    // Add the new entry with index (the index will be the next available index in the list)
     setData((prevData) => {
-      const newIndex = prevData.length > 0 ? prevData[prevData.length - 1].index + 1 : 1;
       const newDataEntry: TemperatureData = {
-        index: newIndex,
         date: newEntry.date,
         temperature: newEntry.temperature,
       };
@@ -55,17 +56,58 @@ const App: React.FC = () => {
     await addRowToSheet(newEntry);
   };
 
-  const handleDeleteData = async (index: number) => {
-    const rowIndex = index + 1; // Adjust for 1-based index in Google Sheets
+  const handleDeleteData = async (date: string, temperature: number | null) => {
+    const authInstance = gapi.auth2.getAuthInstance();
+    if (!authInstance.isSignedIn.get()) {
+      await authInstance.signIn(); // Ensure user is signed in
+    }
 
     try {
-      await deleteRowFromSheet(rowIndex);
-      setData((prevData) => prevData.filter((_, i) => i !== index));
+      const sheetData = await fetchSheetData();
+      const rowToDelete = sheetData.findIndex((row) => row.date === date && row.temperature === temperature);
+
+      if (rowToDelete !== -1) {
+        const range = `Sheet1!A${rowToDelete + 1}:B${rowToDelete + 1}`; // Note that row indexes start at 1 in Google Sheets
+        await gapi.client.sheets.spreadsheets.values.clear({
+          spreadsheetId: SHEET_ID,
+          range: range,
+        });
+
+        // Update local state
+        setData((prevData) => prevData.filter((row) => !(row.date === date && row.temperature === temperature)));
+      } else {
+        setError('Data not found for deletion');
+        setOpenSnackbar(true);
+      }
     } catch (err) {
       setError('Failed to delete data');
       setOpenSnackbar(true);
       console.error('Error deleting data:', err);
     }
+  };
+
+  const handleSignIn = async () => {
+    try {
+      const authInstance = gapi.auth2.getAuthInstance();
+      await authInstance.signIn();
+      setIsSignedIn(true);
+      await fetchSheetData(); // Reload data after sign-in
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+      setError('Sign-in failed');
+      setOpenSnackbar(true);
+    }
+  };
+
+  const handleSignOut = () => {
+    const authInstance = gapi.auth2.getAuthInstance();
+    authInstance.signOut();
+    setIsSignedIn(false);
+    setData([]);
+  };
+
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false);
   };
 
   const generateDateRange = (start: string, end: string) => {
@@ -90,31 +132,27 @@ const App: React.FC = () => {
 
     return dateRange.map((date) => {
       const existingEntry = data.find((entry) => entry.date === date);
-      return existingEntry || { date, temperature: null, index: -1 };
+      return existingEntry || { date, temperature: null };
     });
   })();
 
-  const handleSignOut = () => {
-    const authInstance = gapi.auth2.getAuthInstance();
-    authInstance.signOut();
-    setData([]);
-  };
-
-  const handleCloseSnackbar = () => {
-    setOpenSnackbar(false);
-  };
-
   return (
-    <Box style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <Box style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', minHeight: '100vh' }}>
       <Typography variant="h4" gutterBottom>Temperaturspårning</Typography>
-      <Button
-        variant="contained"
-        color="secondary"
-        style={{ marginBottom: '16px' }}
-        onClick={handleSignOut}
-      >
-        Sign Out
-      </Button>
+
+      <Box style={{ marginBottom: '16px' }}>
+        {/* Combined Sign In/Sign Out button */}
+        <Button
+          variant="contained"
+          style={{
+            backgroundColor: isSignedIn ? 'red' : 'green', // Red for Sign Out, Green for Sign In
+            color: 'white',
+          }}
+          onClick={isSignedIn ? handleSignOut : handleSignIn} // Calls appropriate function
+        >
+          {isSignedIn ? "Sign Out" : "Sign In"} {/* Text changes based on sign-in status */}
+        </Button>
+      </Box>
 
       {loading ? (
         <CircularProgress />
@@ -122,7 +160,7 @@ const App: React.FC = () => {
         <>
           <InputForm onAddData={handleAddData} />
           <TemperatureChart data={filledData} />
-          <TemperatureList data={data} onDeleteData={handleDeleteData} />
+          <TemperatureList data={data} onDeleteData={(date: string, temperature: number | null) => handleDeleteData(date, temperature)} />
         </>
       )}
 
