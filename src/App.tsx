@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import InputForm from './Components/InputForm';
-import TemperatureChart from './Components/TemperatureChart';
-import TemperatureList from './Components/TemperatureList';
+import InputForm from './components/InputForm';
+import TemperatureChart from './components/TemperatureChart';
+import TemperatureList from './components/TemperatureList';
 
 interface TemperatureData {
   date: string;
